@@ -1,0 +1,50 @@
+name: voxpilot-ai
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: voxpilot
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-voxpilot}
+      POSTGRES_DB: voxpilot
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voxpilot -d voxpilot"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    restart: unless-stopped
+    mem_limit: 512m
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file: .env
+    environment:
+      STT_MODEL_CACHE: /models
+      HF_HUB_DOWNLOAD_TIMEOUT: ${HF_HUB_DOWNLOAD_TIMEOUT:-120}
+      HF_HUB_ETAG_TIMEOUT: ${HF_HUB_ETAG_TIMEOUT:-30}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://voxpilot:voxpilot@db:5432/voxpilot}
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - whisper_models:/models
+    mem_limit: 2g
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-5173}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    mem_limit: 128m
+volumes:
+  postgres_data:
+  whisper_models:
