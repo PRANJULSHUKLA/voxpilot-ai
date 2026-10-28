@@ -162,3 +162,34 @@ async def test_gemini_three_compatibility_reaches_chat_and_structured_requests(m
     result = await provider.generate("Helpful system", "hello", [], GroundedAnswer if structured else None, trace())
     assert seen
     assert result.answer == "hello" if structured else result == "hello"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "status,code,http",
+    [
+        (401, "credentials", 502),
+        (403, "credentials", 502),
+        (404, "model_unavailable", 502),
+        (429, "quota", 429),
+        (503, "unavailable", 503),
+        (504, "timeout", 504),
+    ],
+)
+async def test_wrapped_sdk_errors_are_classified_without_payloads(monkeypatch, status, code, http):
+    from google.genai.errors import ClientError
+    from langchain_google_genai.chat_models import ChatGoogleGenerativeAIError
+
+    async def rejected(_):
+        try:
+            raise ClientError(status, {"error": {"message": "private-secret-payload", "code": status}})
+        except ClientError as cause:
+            raise ChatGoogleGenerativeAIError("private-secret-payload") from cause
+
+    provider = GeminiProvider(Settings(_env_file=None, gemini_api_key="test"))
+    monkeypatch.setattr(provider, "model", lambda: RunnableLambda(rejected))
+    with pytest.raises(AppError) as exc:
+        await provider.generate("system", "private input", [], None, trace())
+    assert exc.value.code == f"provider_{code}"
+    assert exc.value.status == http
+    assert "private" not in exc.value.message

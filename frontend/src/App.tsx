@@ -201,6 +201,10 @@ export default function App() {
         store("vox-session", current.id);
         await fetchSessions();
       }
+      if (interrupted.current) {
+        speech.finishThinking();
+        return;
+      }
       controller.current = new AbortController();
       try {
         const path =
@@ -218,9 +222,32 @@ export default function App() {
         setLastModelMs(result.model_latency_ms ?? null);
         setDraft("");
         if (mode === "Knowledge") setDocumentAnswer(result);
-        await fetchMessages(current.id);
+        // The response is already committed. Keep it visible even if reloading fails.
+        const created_at = new Date().toISOString();
+        setMessages((previous) => [
+          ...previous,
+          {
+            id: `${result.trace_id}-user`,
+            role: "user",
+            content: text,
+            created_at,
+          },
+          {
+            id: `${result.trace_id}-assistant`,
+            role: "assistant",
+            content: result.answer,
+            created_at,
+          },
+        ]);
         if (!controller.current.signal.aborted && spoken)
           speech.play(result.answer, voice, rate);
+        try {
+          await fetchMessages(current.id);
+        } catch {
+          setError(
+            "Response saved, but conversation refresh failed. Refresh the conversation before retrying your message.",
+          );
+        }
       } finally {
         controller.current = null;
         speech.finishThinking();
@@ -274,42 +301,7 @@ export default function App() {
   );
   return (
     <div className="app-shell cosmic-shell">
-      <div className="cosmic-sky" aria-hidden="true">
-        <div className="nebula nebula-violet" />
-        <div className="nebula nebula-cyan" />
-        <svg
-          className="constellations"
-          viewBox="0 0 1440 1000"
-          preserveAspectRatio="xMidYMid slice"
-        >
-          <path d="M60 160L190 250L260 110L380 180M1050 100L1190 210L1360 150M1110 730L1220 850L1380 780" />
-          {[
-            [60, 160],
-            [190, 250],
-            [260, 110],
-            [380, 180],
-            [1050, 100],
-            [1190, 210],
-            [1360, 150],
-            [1110, 730],
-            [1220, 850],
-            [1380, 780],
-          ].map(([cx, cy]) => (
-            <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="2" />
-          ))}
-        </svg>
-        {Array.from({ length: 55 }, (_, i) => (
-          <i
-            className="star"
-            key={i}
-            style={{
-              left: `${(i * 37.3) % 100}%`,
-              top: `${(i * 23.7) % 100}%`,
-              animationDelay: `${i % 7}s`,
-            }}
-          />
-        ))}
-      </div>
+      <div className="cosmic-sky" aria-hidden="true" />
       <aside className="sidebar">
         <a
           className="brand"
@@ -329,7 +321,7 @@ export default function App() {
         <div className="workspace-label">
           <span className="workspace-avatar">P</span>
           <div>
-            Personal workspace<small>LOCAL EDITION</small>
+            Your space<small>VOICE & KNOWLEDGE</small>
           </div>
           <span className="workspace-dot" />
         </div>
@@ -528,7 +520,7 @@ export default function App() {
         </div>
         <footer className="main-footer">
           <span>VOXPILOT AI</span>
-          <span>A signal in the infinite.</span>
+          <span>Made for your train of thought.</span>
         </footer>
       </main>
     </div>

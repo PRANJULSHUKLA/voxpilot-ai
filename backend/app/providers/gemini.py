@@ -21,6 +21,40 @@ set insufficient_evidence=true. Cite only supplied chunk IDs that directly suppo
 Never invent citations. Do not use external knowledge to fill gaps."""
 
 
+def provider_error(exc, prefix="provider"):
+    # LangChain wraps SDK exceptions; inspect bounded causes, never private error text.
+    current = exc
+    status = None
+    for _ in range(8):
+        status = getattr(current, "status_code", None) or getattr(current, "code", None)
+        if isinstance(status, int):
+            break
+        if current.__cause__ is None:
+            break
+        current = current.__cause__
+    if status in (401, 403):
+        return AppError(
+            502,
+            f"{prefix}_credentials",
+            "Gemini credentials or permissions were rejected. Check the server key and access.",
+        )
+    if status == 404:
+        return AppError(
+            502,
+            f"{prefix}_model_unavailable",
+            "Configured Gemini model was not found or is unavailable to this account.",
+        )
+    if status == 429:
+        return AppError(429, f"{prefix}_quota", "Gemini quota exhausted. Check your quota and retry later.")
+    if status in (408, 504) or isinstance(current, TimeoutError):
+        return AppError(504, f"{prefix}_timeout", "Gemini timed out. Please retry.")
+    if isinstance(status, int) and status >= 500:
+        return AppError(503, f"{prefix}_unavailable", "Gemini is temporarily unavailable. Retry later.")
+    return AppError(
+        502, f"{prefix}_error", "Gemini request failed. Check model configuration and provider availability."
+    )
+
+
 def _gemini_three_or_later(model_name: str) -> bool:
     version = re.match(r"(?:models/)?gemini-(\d+)", model_name)
     return bool(version and int(version.group(1)) >= 3)
@@ -66,11 +100,11 @@ class GeminiProvider:
         prompt = ChatPromptTemplate.from_messages(
             [("system", system), MessagesPlaceholder("history"), ("human", "{text}")]
         )
-        model = self.model()
-        if schema:
-            model = model.with_structured_output(schema, method="json_schema", include_raw=True)
         start = perf_counter()
         try:
+            model = self.model()
+            if schema:
+                model = model.with_structured_output(schema, method="json_schema", include_raw=True)
             async with asyncio.timeout(self.settings.request_timeout_seconds):
                 response = await (prompt | model).ainvoke({"history": history, "text": text})
             raw = response["raw"] if schema else response
@@ -94,17 +128,7 @@ class GeminiProvider:
         except AppError:
             raise
         except Exception as exc:
-            # Classify without logging SDK error text, which may contain request contents.
-            status = getattr(exc, "status_code", None) or getattr(exc, "code", None)
-            if status == 429 or "ResourceExhausted" in type(exc).__name__:
-                raise AppError(
-                    429, "provider_quota", "Gemini quota exhausted. Check your quota and retry later."
-                ) from None
-            raise AppError(
-                502,
-                "provider_error",
-                "Gemini request failed. Check the server API key, model access and provider availability.",
-            ) from None
+            raise provider_error(exc) from None
         finally:
             trace.model_latency_ms = (perf_counter() - start) * 1000
 
@@ -125,5 +149,5 @@ class GeminiProvider:
             raise AppError(504, "embedding_timeout", "Embedding request timed out.") from None
         except AppError:
             raise
-        except Exception:
-            raise AppError(502, "embedding_error", "Embedding failed. Check EMBEDDING_MODEL, key and quota.") from None
+        except Exception as exc:
+            raise provider_error(exc, "embedding") from None

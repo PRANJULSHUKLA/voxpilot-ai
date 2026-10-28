@@ -13,12 +13,12 @@ type Props = {
 export const voiceLabels = {
   idle: "Ready when you are",
   requesting_permission: "Allow microphone access",
-  listening: "Listening to your universe",
+  listening: "I’m listening.",
   stopping_recording: "Finishing your recording",
   transcribing: "Transcribing your voice",
   transcript_ready: "Your words, captured",
-  thinking: "Connecting the constellations",
-  speaking: "A response, resonating",
+  thinking: "Thinking it through",
+  speaking: "Let’s talk about it",
   error: "Let’s reconnect",
 };
 export function CosmicOrb({
@@ -44,7 +44,7 @@ export function CosmicOrb({
       <div className="stage-top">
         <span className="badge">
           <Radio size={12} />
-          LOCAL VOICE · FASTER-WHISPER
+          YOUR VOICE SPACE
         </span>
         <span className={`interaction-status ${speech.state}`} role="status">
           {speech.state.replaceAll("_", " ")}
@@ -60,8 +60,8 @@ export function CosmicOrb({
         <div className="celestial-orbit orbit-c" />
         <span className="satellite satellite-a" />
         <span className="satellite satellite-b" />
-        <span className="coordinate coordinate-left">VOX / 01</span>
-        <span className="coordinate coordinate-right">SIGNAL · LOCAL</span>
+        <span className="coordinate coordinate-left">SPEAK</span>
+        <span className="coordinate coordinate-right">EXPLORE</span>
         <button
           className="celestial-core"
           aria-label={
@@ -80,6 +80,14 @@ export function CosmicOrb({
           <span className="core-halo" />
           <span className="core-body">
             <span className="core-ribbon" />
+            <span className="voice-bars" aria-hidden="true">
+              {[18, 34, 48, 28, 42, 22, 12].map((height, i) => (
+                <i
+                  key={i}
+                  style={{ "--bar-height": `${height}px` } as CSSProperties}
+                />
+              ))}
+            </span>
             {loading ? (
               <LoaderCircle className="core-symbol spin" size={31} />
             ) : recording ? (
@@ -97,8 +105,8 @@ export function CosmicOrb({
             : speech.state === "transcribing"
               ? "AUDIO → WORDS"
               : speech.state === "thinking"
-                ? "WORDS → POSSIBILITY"
-                : "AN OPEN CHANNEL TO YOUR NEXT IDEA"}
+                ? "MAKING CONNECTIONS"
+                : "A LITTLE SPACE TO THINK"}
         </span>
         <h2>{voiceLabels[speech.state]}</h2>
         <p>
@@ -112,7 +120,7 @@ export function CosmicOrb({
                 ? "Check the error above, then retry or continue with text."
                 : speech.state === "thinking"
                   ? "Gemini is working with your conversation context."
-                  : "One thought can open up an entire universe."}
+                  : "Ask a question. Work through an idea. Just be yourself."}
         </p>
       </div>
       <div className="stage-buttons">

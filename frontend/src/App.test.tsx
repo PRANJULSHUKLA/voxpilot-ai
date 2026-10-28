@@ -174,3 +174,57 @@ it("allows reviewing and editing the transcript before manual submission", async
   const chat = mocks.api.mock.calls.find((c) => c[0] === "/chat");
   expect(JSON.parse(chat?.[1].body as string).text).toBe("Explain an orbit");
 });
+it("speaks a successful answer even when history refresh stalls", async () => {
+  const original = mocks.api.getMockImplementation()!;
+  mocks.api.mockImplementation((path: string, options?: RequestInit) =>
+    path.includes("/messages")
+      ? new Promise(() => {})
+      : original(path, options),
+  );
+  render(<App />);
+  await record();
+  await waitFor(() => expect(mocks.speak).toHaveBeenCalledOnce());
+  expect(mocks.speak.mock.calls[0][0].text).toContain("black hole");
+});
+it("does not mislabel a saved answer as failed when history refresh fails", async () => {
+  const original = mocks.api.getMockImplementation()!;
+  mocks.api.mockImplementation((path: string, options?: RequestInit) =>
+    path.includes("/messages")
+      ? Promise.reject(new Error("offline"))
+      : original(path, options),
+  );
+  render(<App />);
+  await record();
+  await waitFor(() =>
+    expect(screen.getByRole("alert").textContent).toContain("Response saved"),
+  );
+  expect(mocks.speak).toHaveBeenCalledOnce();
+  expect(screen.queryByRole("button", { name: "Retry message" })).toBeNull();
+  expect(
+    screen.getByText("A black hole is a region of spacetime."),
+  ).toBeTruthy();
+});
+it("does not start generation after cancellation during session creation", async () => {
+  const original = mocks.api.getMockImplementation()!;
+  let resolveSession: ((value: any) => void) | undefined;
+  mocks.api.mockImplementation((path: string, options?: RequestInit) =>
+    path === "/sessions" && options?.method === "POST"
+      ? new Promise((resolve) => {
+          resolveSession = resolve;
+        })
+      : original(path, options),
+  );
+  render(<App />);
+  await record();
+  await waitFor(() => expect(resolveSession).toBeDefined());
+  fireEvent.click(screen.getByRole("button", { name: "Cancel request" }));
+  await act(async () => {
+    resolveSession!({
+      id: "session",
+      title: "Cancelled",
+      expires_at: "2099-01-01",
+    });
+  });
+  expect(mocks.api.mock.calls.some(([path]) => path === "/chat")).toBe(false);
+  expect(mocks.speak).not.toHaveBeenCalled();
+});

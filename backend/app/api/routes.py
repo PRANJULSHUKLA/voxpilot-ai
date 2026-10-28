@@ -25,7 +25,7 @@ from app.schemas.api import (
     TextInput,
     TraceOut,
 )
-from app.services.retrieval import chunk_pages, extract_pages
+from app.services.retrieval import chunk_pages, extract_pages, validate_vectors
 
 router = APIRouter(prefix="/api/v1")
 logger = logging.getLogger("voxpilot")
@@ -241,8 +241,9 @@ async def upload(request: Request, session_id: UUID, file: UploadFile = File(...
         pages = await run_in_threadpool(extract_pages, data, name, settings.max_document_characters)
         chunks = chunk_pages(pages, settings.chunk_size, settings.chunk_overlap)
         vectors = await request.app.state.provider.embed([text for _, text in chunks])
-        if len(vectors) != len(chunks):
-            raise AppError(502, "embedding_error", "Embedding count did not match document chunks.")
+        validate_vectors(vectors, len(chunks))
+        # Inference can outlast the session TTL. Recheck before committing.
+        get_session(db, str(session_id), "chat")
         doc = Document(session_id=str(session_id), name=name, embedding_model=settings.embedding_model)
         db.add(doc)
         db.flush()

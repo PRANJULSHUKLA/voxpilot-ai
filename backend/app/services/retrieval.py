@@ -50,11 +50,33 @@ def chunk_pages(pages, size, overlap):
     ]
 
 
+def validate_vectors(vectors, expected_count):
+    """Reject corrupt provider/stored vectors rather than silently abstaining."""
+    if not isinstance(vectors, list) or len(vectors) != expected_count or not vectors:
+        raise AppError(502, "embedding_error", "Embedding count did not match the requested inputs.")
+    dimension = None
+    for vector in vectors:
+        if (
+            not isinstance(vector, list)
+            or not vector
+            or any(type(value) not in (int, float) or not math.isfinite(value) for value in vector)
+        ):
+            raise AppError(502, "embedding_error", "Embedding contains invalid numeric values.")
+        norm = math.hypot(*vector)
+        if not math.isfinite(norm) or norm == 0:
+            raise AppError(502, "embedding_error", "Embedding must have a finite nonzero norm.")
+        if dimension is not None and len(vector) != dimension:
+            raise AppError(502, "embedding_error", "Embedding dimensions are inconsistent within the batch.")
+        dimension = len(vector)
+    return vectors
+
+
 def cosine(a, b):
     if len(a) != len(b):
         raise AppError(409, "embedding_mismatch", "Embedding dimensions changed. Delete and re-upload the document.")
-    denominator = math.sqrt(sum(x * x for x in a) * sum(x * x for x in b))
-    return sum(x * y for x, y in zip(a, b)) / denominator if denominator else 0.0
+    validate_vectors([a, b], 2)
+    a_norm, b_norm = math.hypot(*a), math.hypot(*b)
+    return sum((x / a_norm) * (y / b_norm) for x, y in zip(a, b))
 
 
 async def retrieve(db, provider, settings, session_id, document_id, question, trace):
@@ -64,7 +86,7 @@ async def retrieve(db, provider, settings, session_id, document_id, question, tr
         raise AppError(404, "document_not_found", "Document not found in this session.")
     if doc.embedding_model != settings.embedding_model:
         raise AppError(409, "embedding_mismatch", "Embedding model changed. Re-upload the document.")
-    query = (await provider.embed([question], query=True))[0]
+    query = validate_vectors(await provider.embed([question], query=True), 1)[0]
     chunks = db.scalars(select(Chunk).where(Chunk.document_id == doc.id)).all()
     ranked = sorted([(cosine(query, c.vector), c) for c in chunks], key=lambda item: item[0], reverse=True)
     sources = [

@@ -95,6 +95,8 @@ def build_graph(db, provider, settings, trace):
                     "answer": "The uploaded material does not contain enough evidence to answer this question.",
                     "sources": [],
                 }
+            if not grounded.answer.strip():
+                raise AppError(502, "invalid_output", "Model returned a blank grounded answer. Retry.")
             return {
                 "answer": grounded.answer,
                 "sources": [s for s in state["sources"] if s["id"] in grounded.citation_ids],

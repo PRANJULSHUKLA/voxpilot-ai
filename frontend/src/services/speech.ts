@@ -204,8 +204,7 @@ export function useSpeech(
       request.current = null;
       setLastTranscript(response);
       transition("transcript_ready");
-      await refreshAudioStatus();
-      if (current !== epoch.current) return;
+      // Readiness is advisory; it must never delay transcript delivery.
       await finalRef.current(response.transcript);
       if (
         current === epoch.current &&

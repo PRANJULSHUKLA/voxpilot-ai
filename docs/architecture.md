@@ -43,8 +43,77 @@ The frontend voice state machine separates idle, requesting_permission, listenin
 
 Browser speech synthesis remains client-side. Interrupt detaches expected cancellation handlers, cancels capture/fetch and calls speechSynthesis.cancel. Text is preserved if playback fails. API fetch is bounded by AbortController timeouts, but closing a client connection cannot stop an already-running native inference thread or guarantee Gemini cancellation. Turns are not full duplex or streaming. Raw recordings are discarded after local processing; larger multipart uploads may be briefly spooled by Starlette and are closed reliably.
 
-The cosmic shell uses CSS nebula layers, a finite star field, SVG constellation lines, a keyboard-operable recording orb and state-driven orbit animation. Listening expansion uses measured audio amplitude; speaking/processing effects are explicitly state animations. Reduced-motion disables animations and dynamic scaling. Chat, meetings, documents, settings and observability retain their original operations.
+The Voice Space theme uses a near-black canvas, charcoal surfaces, electric-lime actions and a violet/pink CSS voice orb. The keyboard-operable orb and recording controls retain the existing speech lifecycle. Listening bars and expansion use measured microphone amplitude; the idle symbol and speaking/processing effects are decorative state indicators, not synthesized microphone data. Reduced-motion disables animations and dynamic scaling. Chat, meetings, documents, settings and observability retain their original operations.
 
 ## Deployment decisions
 
 A non-root Python container runs migrations then a single Uvicorn process. A multi-stage Node build produces static React assets, served by an unprivileged nginx container. Browser API requests use a same-origin nginx proxy; no API secret enters the build. PostgreSQL readiness gates backend startup, and backend readiness gates frontend startup. Secrets remain environment configuration, excluded by .gitignore/.dockerignore. Dependency versions are exact in requirements.txt and package-lock.json. Docker base images use maintained version tags; production deployments should pin reviewed image digests and add image scanning/backups.
+
+## Component and deployment views
+
+```mermaid
+flowchart LR
+  B[Browser: React / MediaRecorder / speechSynthesis] -->|same-origin /api| N[nginx: static assets + proxy]
+  N --> A[FastAPI: validation / origin guard / limits]
+  A --> W[Local faster-whisper: one inference at a time]
+  A --> G[LangGraph: explicit chat / meeting / document route]
+  G --> L[LangChain prompts and structured output]
+  L -->|text / evidence over network| V[Gemini Developer API]
+  G --> R[Extraction / cosine retrieval]
+  R --> E[Gemini embeddings]
+  A --> D[(PostgreSQL: sessions, messages, chunks, traces)]
+  G --> D
+  R --> D
+```
+
+Compose places nginx, FastAPI and PostgreSQL in separate containers on a private network. Only frontend/API ports bind to host loopback. PostgreSQL and Whisper caches use named volumes. Host development can use SQLite instead. These are deployment units, not independent microservices.
+
+```mermaid
+sequenceDiagram
+  actor User
+  participant UI as React + MediaRecorder
+  participant API as FastAPI
+  participant STT as faster-whisper
+  participant Graph as LangGraph
+  participant Model as Gemini
+  participant DB as PostgreSQL
+  User->>UI: Record, then stop
+  UI->>API: Bounded audio upload
+  API->>STT: Decode and transcribe in worker thread
+  STT-->>UI: Final transcript via API
+  Note over UI: Edit first or auto-send; status refresh is advisory
+  UI->>API: Text + session + explicit operation
+  API->>Graph: Validate request and load bounded context
+  Graph->>Model: Prompt + history or retrieved evidence
+  Model-->>Graph: Text or structured output + usage
+  Graph->>Graph: Validate output and references
+  alt Valid result
+    Graph->>DB: Commit successful message pair / notes
+    Graph-->>UI: Answer via API
+    UI->>User: Browser speech synthesis
+    UI->>API: Refresh stored history
+  else Provider or validation failure
+    Graph-->>API: Safe categorized error; rollback
+    API-->>UI: Recovery message; keep draft
+  end
+  API->>DB: Separate payload-free trace
+```
+
+## Concepts and boundaries
+
+- **LangChain vs LangGraph:** LangChain adapts prompts, messages and Gemini schemas; LangGraph orders application steps. Explicit routing is a workflow, not an autonomous agent.
+- **Recognition vs generation:** local faster-whisper predicts spoken text from audio; remotely hosted Gemini generates answers/notes from text. Browser synthesis turns answer text into speech and may depend on OS/browser voice implementation.
+- **Application storage vs checkpoints:** SQLAlchemy stores completed business records. No LangGraph checkpointer is configured; interrupted graph runs cannot resume from a saved node.
+- **Embeddings vs answers:** embeddings are numeric retrieval features, stored with model identity; answers are generated language. Numeric validity and dimension checks cannot establish relevance.
+- **Retrieval vs reranking:** cosine retrieval selects passages once. There is no second learned reranker, hybrid search or calibrated relevance score.
+- **Structured output vs factual validation:** Pydantic checks shape; graph checks citation membership and exact action evidence. Neither proves that every sentence follows from evidence.
+
+## 25 October reliability changes
+
+Status polling no longer blocks transcript delivery, and message history refresh no longer gates answer playback. Failed history refresh explicitly says the answer was saved. Cancellation during session initialization prevents starting a later generation. Native inference and remote generation remain non-preemptible from the browser's perspective.
+
+`services/retrieval.py` validates count, numeric finiteness, nonzero norm and consistent dimensions before storing embeddings; queries and stored vectors are checked before cosine ranking. Model/dimension mismatch remains an explicit re-upload error. Cosine uses normalized factors to avoid overflow for large finite vectors. A malformed embedding is an operational failure, not evidence that a question is unanswerable. Grounded whitespace-only answers are rejected before persistence.
+
+`main.py` rejects mutation requests with an Origin outside `CORS_ORIGINS`, including opaque `null` origins; explicit cross-site Fetch Metadata without Origin is also rejected. Originless CLI requests remain supported. This mitigates browser-triggered writes, not local attackers, DNS rebinding or unauthenticated API access. Do not expose this local edition publicly.
+
+Known persistence limitation: document answer text is stored as conversation messages, but source excerpts/IDs are only returned in the current response, not saved with the message. Reloading the page loses the citation panel. Add a versioned source snapshot migration before claiming durable source provenance.

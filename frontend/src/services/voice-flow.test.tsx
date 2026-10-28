@@ -121,3 +121,14 @@ it("keeps the transcript available when the downstream response fails", async ()
   expect(result.current.lastTranscript?.transcript).toContain("Atlas");
   expect(error).toHaveBeenCalledWith("Gemini unavailable");
 });
+it("delivers recognized text even when readiness polling never resolves", async () => {
+  const original = mocks.api.getMockImplementation()!;
+  mocks.api.mockImplementation((path: string, ...args: any[]) =>
+    path === "/audio/status" ? new Promise(() => {}) : original(path, ...args),
+  );
+  const final = vi.fn();
+  const { result } = renderHook(() => useSpeech(final, vi.fn()));
+  await act(() => result.current.startListening());
+  await act(() => result.current.stopListening());
+  expect(final).toHaveBeenCalledExactlyOnceWith("My project is Atlas");
+});

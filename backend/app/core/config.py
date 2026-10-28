@@ -6,13 +6,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", hide_input_in_errors=True)
     gemini_api_key: SecretStr = SecretStr("")
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3.6-flash"
     gemini_temperature: float = Field(0.3, ge=0, le=2)
     embedding_model: str = "gemini-embedding-001"
     database_url: str = "sqlite:///./voxpilot.db"
     app_env: str = "development"
     log_level: str = "INFO"
-    cors_origins: str = "http://localhost:5173"
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     session_ttl_hours: int = Field(24, ge=1)
     max_input_characters: int = Field(12000, ge=100, le=100000)
     max_output_tokens: int = Field(1024, ge=128, le=8192)
@@ -38,6 +38,10 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def valid_chunking(self):
+        if any(
+            not origin.strip().startswith(("http://", "https://")) for origin in self.cors_origins.split(",")
+        ):
+            raise ValueError("CORS_ORIGINS must contain explicit HTTP(S) origins")
         if self.chunk_overlap >= self.chunk_size:
             raise ValueError("CHUNK_OVERLAP must be smaller than CHUNK_SIZE")
         if not self.gemini_model.strip() or not self.embedding_model.strip():

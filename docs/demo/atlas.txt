@@ -1,0 +1,6 @@
+Atlas course project: Retrieval-augmented generation
+
+The Atlas study group meets on Tuesdays at 16:00 in room Cedar.
+Its prototype splits searchable documents into overlapping passages, embeds each passage, and retrieves passages relevant to a question. Answers should include supporting sources. A citation identifies evidence; it does not by itself prove that every claim is supported.
+
+Local transcription converts recorded speech into text. Language generation produces an answer from text and context. The group will evaluate retrieval using answerable and unanswerable questions. No budget, founder or exam date has been agreed.

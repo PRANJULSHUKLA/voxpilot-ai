@@ -1,0 +1,4 @@
+Maya: Today we reviewed the Atlas study prototype and its document retrieval workflow. We agreed to keep the demo local until authentication is implemented.
+Leo: I will prepare the retrieval test questions by Friday.
+Maya: We still need someone to review the citations. We have not assigned that work or chosen a deadline.
+Leo: How should we measure insufficient-evidence answers? Let's discuss that next Tuesday. We have not decided on a similarity threshold yet.

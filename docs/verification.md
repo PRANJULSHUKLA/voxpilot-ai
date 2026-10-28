@@ -78,3 +78,42 @@ docker compose exec -e RUN_REAL_STT=1 -e HF_HUB_OFFLINE=1 backend python tests/p
 ```
 
 Prepare model weights first. This command makes no paid API calls. The normal pytest suite does not load/download weights.
+
+## Latest verification — 25 October 2026
+
+This increment was verified against the final code on `main`, without modifying `.env`, committing or pushing. The earlier dated records above are historical, not re-run claims.
+
+| Executed check | Result |
+| --- | --- |
+| Host backend: `cd backend && ../.venv/bin/python -m pytest -q` | **79 passed, 1 live test skipped**. Includes disposable SQLite Alembic upgrade/downgrade. Baseline was 47 passed / 1 skipped. |
+| Linux ARM64 container backend | **79 passed, 1 live test skipped**, with test origins explicitly supplied and cache in `/tmp`. |
+| Frontend: `npm test -- --reporter=dot` | **27 passed in 6 files**. Baseline was 23. Includes stalled status/history requests, saved-answer refresh failure, and cancellation before generation. |
+| `npm run build` | TypeScript and Vite production build passed, on host and in Docker. |
+| `ruff check --config backend/pyproject.toml backend scripts` | Passed. Explicit config avoids unrelated inherited host lint settings. |
+| `git diff --check` | Passed. |
+| `npm audit --audit-level=high` | 0 known vulnerabilities reported. First sandboxed query failed DNS; rerun with network access passed. This is not a Python/container security audit. |
+| Compose configuration | `docker compose config --quiet` passed. |
+| Isolated Compose build/start | Backend/frontend images built; PostgreSQL, backend and frontend healthy. Migration revision `0001 (head)`. |
+| Real-stack HTTP smoke | `scripts/smoke.py` passed through nginx on localhost:18173: database, sessions, validation, meeting persistence, empty-key failure and traces. Test business records removed by the script. |
+| Actual HTTP transcription | Included WebM fixture → nginx → FastAPI → faster-whisper returned expected passage; 11 s audio, reported transcription latency 2091.27 ms. One observation, including this server's first model use. |
+| Real speech + graph + PostgreSQL | `RUN_REAL_STT=1 HF_HUB_OFFLINE=1 ... python tests/postgres_smoke.py` passed with real STT and mocked Gemini/embeddings; chat history, structured notes, stored vectors and citation responses passed. Test records and synthetic traces removed by the script. |
+| Reference-based offline STT | WAV and WebM each WER 0.0 on the same JFK reference; 770.90 / 697.82 ms host inference, initialization 834.28 ms. See evaluation methodology. |
+| CI definition | YAML parsed and corresponding local checks executed. No GitHub-hosted run: no push was made. |
+
+The isolated project `voxpilot-verify` used ports 18080/18173, a separate PostgreSQL password/volume and an explicit empty Gemini key. Cached public model weights were copied into its own volume. The copy caused harmless tree-cache permission warnings during the offline smoke, but inference and assertions passed. Test containers were stopped after verification; named test volumes were retained. Existing project data was not changed.
+
+A direct pytest executable invocation initially failed to import `app`; the documented `python -m pytest` invocation from `backend/` passed. An initial scripts lint run inherited unrelated host rules; the explicit repository config command above passed. No unresolved deterministic test/build failures remain.
+
+**Not executed:** paid/live Gemini generation or remote embedding evaluation; physical microphone-to-audible-speaker acceptance; new browser screenshots; hosted CI; Python dependency vulnerability scan; secret-scanner tool; load/concurrency benchmark; backup restore or public deployment. The real-STT/mock-Gemini integration is not proof of live end-to-end Gemini service access. Origin protections do not establish multi-user authorization. Current citation validity tests do not establish semantic grounding accuracy.
+
+For current manual acceptance, use [demo-script.md](demo-script.md), not the historical browser SpeechRecognition instructions above. The current architecture uses MediaRecorder/local transcription, with auto-send on by default and an optional review mode.
+
+## Voice Space theme — 28 October 2026
+
+Replaced the muted cosmic theme with a near-black canvas, electric-lime controls and a violet/pink voice visual. Updated typography, cards, conversation bubbles, navigation and mobile layout while preserving existing workflow handlers. Reduced-motion rules remain; recording animation uses actual microphone level, while idle/speaking visuals are decorative.
+
+- Frontend regression suite: **27 passed in 6 files**, re-run on 28 October.
+- TypeScript/Vite production build: passed.
+- Desktop (1440 px) and mobile (390 px) voice layouts inspected during implementation; document width matched viewport width at both sizes.
+- Screenshots: `docs/screenshots/voice-space-desktop.png` and `voice-space-mobile.png`.
+- No paid Gemini calls or microphone permission changes were needed for the visual redesign.

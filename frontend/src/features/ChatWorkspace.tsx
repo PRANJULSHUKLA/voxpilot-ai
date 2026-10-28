@@ -71,14 +71,14 @@ export function ChatWorkspace({
     <>
       <div className="section-heading">
         <div>
-          <span className="eyebrow">YOUR PERSONAL SIGNAL IN THE COSMOS</span>
+          <span className="eyebrow">THINK OUT LOUD</span>
           <h1>
-            A universe of ideas.
+            Less typing.
             <br />
-            <span>One conversation away.</span>
+            <span>More talking.</span>
           </h1>
           <p className="muted">
-            Speak freely. Think expansively. Let your ideas find their orbit.
+            Your ideas, out loud. A little clarity, a conversation away.
           </p>
         </div>
         <button className="secondary" disabled={busy} onClick={onNew}>
@@ -127,7 +127,7 @@ export function ChatWorkspace({
                   <AudioLines size={17} />
                 </div>
                 <div>
-                  <strong>A fresh space for your thoughts.</strong>
+                  <strong>This is where good conversations start.</strong>
                   <p>
                     Ask a question, explore an idea, or work through something
                     together.
@@ -201,9 +201,11 @@ export function ChatWorkspace({
         </section>
         <aside className="context-column">
           <div className="panel quick-start">
-            <span className="cosmic-card-icon">✧</span>
-            <span className="eyebrow">CHOOSE A CONSTELLATION</span>
-            <h3>Explore a new direction</h3>
+            <span className="cosmic-card-icon">
+              <AudioLines size={22} />
+            </span>
+            <span className="eyebrow">A LITTLE INSPIRATION</span>
+            <h3>Where should we start?</h3>
             {[
               "Help me understand a complex topic",
               "Brainstorm an idea with me",
@@ -277,7 +279,7 @@ export function ChatWorkspace({
           </div>
           <div className="feature-note">
             <span className="badge">BEYOND CONVERSATION</span>
-            <h3>Capture a little stardust.</h3>
+            <h3>Good ideas deserve a next step.</h3>
             <p>
               Turn discussions into clear notes, or find answers in your own
               documents.

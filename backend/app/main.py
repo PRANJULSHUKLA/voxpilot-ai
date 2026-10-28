@@ -49,9 +49,10 @@ def create_app(settings=None, provider=None):
     app.state.transcriber = LocalTranscription(settings)
     app.include_router(router)
     app.include_router(audio_router)
+    allowed_origins = {v.strip() for v in settings.cors_origins.split(",")}
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[v.strip() for v in settings.cors_origins.split(",")],
+        allow_origins=list(allowed_origins),
         allow_methods=["GET", "POST", "PATCH", "DELETE"],
         allow_headers=["Content-Type"],
         expose_headers=["X-Trace-ID"],
@@ -69,6 +70,12 @@ def create_app(settings=None, provider=None):
     async def guard(request: Request, call_next):
         request.state.trace_id = str(uuid4())
         if request.method in {"POST", "PATCH", "DELETE"}:
+            # CORS controls response reads, not execution of simple cross-site POSTs.
+            origin = request.headers.get("origin")
+            if origin is not None and origin not in allowed_origins:
+                return response_error(request, 403, "origin_denied", "Browser origin is not allowed.")
+            if origin is None and request.headers.get("sec-fetch-site") == "cross-site":
+                return response_error(request, 403, "origin_denied", "Cross-site browser writes are not allowed.")
             client = request.client.host if request.client else "local"
             current = monotonic()
             # Prune idle clients to bound memory; this is a single-worker local limiter.

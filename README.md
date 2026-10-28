@@ -1,17 +1,25 @@
 # VoxPilot AI
 
-**Intelligent Voice Agent & Meeting Intelligence Platform**
+**Voice-First Knowledge Intelligence Platform**
 
 A local-first, turn-based voice workspace built with React/TypeScript, FastAPI, LangChain, LangGraph, Gemini and PostgreSQL. Transcribe microphone audio locally, optionally review before auto-send, continue persistent conversations, generate editable meeting notes, ask grounded questions about PDFs/TXT files, and inspect actual request metrics.
 
-![VoxPilot running locally](docs/screenshots/desktop.png)
+![VoxPilot voice workspace](docs/screenshots/voice-space-desktop.png)
+
+## Latest updates
+
+- **Voice Space interface:** near-black surfaces, electric-lime controls, a violet/pink voice orb, conversation bubbles and responsive navigation.
+- **More reliable voice turns:** transcript delivery and answer playback no longer wait on status/history refreshes; saved answers remain visible if refresh fails.
+- **Safer failures:** categorized Gemini errors, cancellation before generation, explicit browser-origin write checks and atomic rejection of invalid embeddings or blank grounded answers.
+- **Repeatable verification:** 79 backend tests and 27 frontend tests passed locally, plus builds, lint, real local transcription and PostgreSQL smoke checks. Paid Gemini evaluation stays opt-in.
+- **Developer handoff:** CI checks, architecture diagrams, a threat model, demo fixtures and an implementation-based interview guide. See [verification](docs/verification.md) for evidence and limitations.
 
 ## Run with Docker
 
 Requires Docker Engine/Desktop with Compose v2 and an internet connection for the first build and Gemini calls.
 
 ```sh
-cp .env.example .env
+test -e .env || cp .env.example .env
 # Edit .env and set GEMINI_API_KEY to your Google AI Studio API key.
 # Replace CHANGE_ME in both POSTGRES_PASSWORD and DATABASE_URL.
 docker compose up --build -d
@@ -98,7 +106,7 @@ voxpilot-ai/
 
 **LangChain** builds `ChatPromptTemplate` → `ChatGoogleGenerativeAI` runnable pipelines, injects recent history, validates structured meeting/grounded output with Pydantic, and uses `GoogleGenerativeAIEmbeddings` for document/query vectors. **LangGraph** executes a typed, bounded six-node path: validate input → load context → classify explicit UI intent → dedicated chat/meeting/document node → validate output → persist successful result. Routing adds no classification model call, retries are disabled to bound quota usage, and failed generations do not persist successful conversation turns. See [architecture](docs/architecture.md) for node purposes and retrieval tradeoffs.
 
-Defaults were checked against the official [Gemini 2.5 Flash model documentation](https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash) and [embedding documentation](https://ai.google.dev/gemini-api/docs/embeddings). `gemini-2.5-flash` and `gemini-embedding-001` remain explicit overrideable configuration values; there is no silent fallback. The supported [LangChain integration](https://docs.langchain.com/oss/python/integrations/chat/google_generative_ai) uses the `google-genai` SDK. Availability for your account is established only on actual requests.
+The default generation model is `gemini-3.6-flash`, verified in the official [model catalog](https://ai.google.dev/gemini-api/docs/models). Embeddings remain `gemini-embedding-001`; changing embedding models requires re-uploading documents. Both identifiers are explicitly configurable with no silent fallback. The [LangChain integration](https://docs.langchain.com/oss/python/integrations/chat/google_generative_ai) uses the Google GenAI SDK. Account access and quota require a real request; deterministic tests do not establish them.
 
 ## Development without Docker
 
@@ -181,3 +189,19 @@ The original microphone flow only checked permission, stopped that stream and de
 The current `.env.example` selects `gemini-3.6-flash`, MAX_OUTPUT_TOKENS=4096 and REQUEST_TIMEOUT_SECONDS=90. Gemini 3+ requests omit custom sampling parameters and candidate_count; the pinned integration's final SDK request configuration is covered by chat and structured-output regression tests. Legacy Gemini 2.5 configurations retain their configured temperature. Google migration reference: https://ai.google.dev/gemini-api/docs/generate-content/whats-new-gemini-3.6
 
 After editing the root .env, run `docker compose up --build -d backend`; a plain container restart does not reload changed Compose environment values. Use a newly rotated private server API key. The model identifier is verified in documentation, but account access, key validity and quota still require an actual request.
+
+
+## Engineering evidence and interview preparation
+
+For students reviewing course material, teams preparing meeting notes and knowledge workers searching their own documents, the complete implemented flows are voice/text chat, transcript-to-editable-notes, and selected-document Q&A. This remains a personal local workspace.
+
+- [Implementation checklist and remaining work](docs/implementation-checklist.md)
+- [Architecture and sequence diagrams](docs/architecture.md)
+- [Research and decisions](docs/research-and-decisions.md) / [decision records](docs/architecture-decisions.md)
+- [Evaluation methodology and measurements](docs/evaluation.md) / [executed verification](docs/verification.md)
+- [Threat model](docs/threat-model.md) / [operations and recovery](docs/operations.md)
+- [Interview defence guide](docs/interview-guide.md) / [five-minute demo and sample data](docs/demo-script.md)
+
+The API rejects browser writes from origins outside `CORS_ORIGINS`; list exact frontend origins when changing ports. This supplements CORS and does not add authentication. Source references currently survive only in the current document-answer view, not in persisted message history.
+
+For reference-based offline speech evaluation after caching weights, run `HF_HUB_OFFLINE=1 .venv/bin/python scripts/evaluate_stt.py`. CI is defined in `.github/workflows/verify.yml` and runs on pushes and pull requests; check the repository Actions tab for hosted results. No new runtime dependencies were added in this increment.
