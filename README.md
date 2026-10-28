@@ -188,7 +188,7 @@ The original microphone flow only checked permission, stopped that stream and de
 
 The current `.env.example` selects `gemini-3.6-flash`, MAX_OUTPUT_TOKENS=4096 and REQUEST_TIMEOUT_SECONDS=90. Gemini 3+ requests omit custom sampling parameters and candidate_count; the pinned integration's final SDK request configuration is covered by chat and structured-output regression tests. Legacy Gemini 2.5 configurations retain their configured temperature. Google migration reference: https://ai.google.dev/gemini-api/docs/generate-content/whats-new-gemini-3.6
 
-After editing the root .env, run `docker compose up --build -d backend`; a plain container restart does not reload changed Compose environment values. Use a newly rotated private server API key. The model identifier is verified in documentation, but account access, key validity and quota still require an actual request.
+run `docker compose up --build -d backend`; a plain container restart does not reload changed Compose environment values. Use a newly rotated private server API key. The model identifier is verified in documentation, but account access, key validity and quota still require an actual request.
 
 
 ## Engineering evidence and interview preparation
